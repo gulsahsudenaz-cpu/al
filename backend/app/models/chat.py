@@ -1,6 +1,7 @@
 """Chat Model"""
 from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 import enum
@@ -23,9 +24,13 @@ class Chat(Base):
     status = Column(Enum(ChatStatus), default=ChatStatus.ACTIVE, nullable=False)
     assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     sla_at = Column(DateTime(timezone=True), nullable=True)
-    metadata = Column(Text, nullable=True)  # JSON string
+    meta_data = Column(Text, nullable=True)  # JSON string (renamed from metadata to avoid SQLAlchemy conflict)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    user = relationship("User", back_populates="chats", foreign_keys=[assigned_to], lazy="selectin")
+    messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan", lazy="selectin")
     
     __table_args__ = (
         {"schema": "public"}

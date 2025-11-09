@@ -5,13 +5,29 @@ from typing import List, Dict, Optional, AsyncGenerator
 from datetime import datetime, timedelta
 import time
 import json
+import hashlib
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+import redis.asyncio as redis
 
 from app.config import settings
 from app.models.llm_usage import LLMUsage
 from app.core.database import get_db
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Redis client for caching
+_redis_cache: Optional[redis.Redis] = None
+
+
+async def get_redis_cache():
+    """Get Redis client for caching"""
+    global _redis_cache
+    if _redis_cache is None:
+        _redis_cache = redis.from_url(settings.REDIS_URL, decode_responses=False)
+    return _redis_cache
 
 
 class CircuitBreaker:
@@ -101,22 +117,70 @@ class LLMService:
         daily_cost = await self.get_daily_cost(db)
         return daily_cost < self.daily_cost_limit
     
+    async def _get_cache_key(self, messages: List[Dict[str, str]], temperature: float) -> str:
+        """Generate cache key from messages and temperature"""
+        cache_data = json.dumps({"messages": messages, "temperature": temperature}, sort_keys=True)
+        cache_hash = hashlib.md5(cache_data.encode()).hexdigest()
+        return f"llm:cache:{cache_hash}"
+    
+    async def _get_cached_response(self, cache_key: str) -> Optional[Dict]:
+        """Get cached LLM response"""
+        try:
+            redis_cache = await get_redis_cache()
+            cached = await redis_cache.get(cache_key)
+            if cached:
+                logger.info("LLM cache hit", cache_key=cache_key)
+                return json.loads(cached)
+            return None
+        except Exception as e:
+            logger.warning("Redis cache error", error=str(e))
+            return None
+    
+    async def _set_cached_response(self, cache_key: str, response: Dict, ttl: int):
+        """Cache LLM response"""
+        try:
+            redis_cache = await get_redis_cache()
+            await redis_cache.setex(
+                cache_key,
+                ttl,
+                json.dumps(response, ensure_ascii=False)
+            )
+            logger.info("LLM response cached", cache_key=cache_key, ttl=ttl)
+        except Exception as e:
+            logger.warning("Redis cache set error", error=str(e))
+
     async def call_llm(
         self,
         messages: List[Dict[str, str]],
         temperature: float = 0.2,
         tools: Optional[List[Dict]] = None,
         stream: bool = True,
-        db: AsyncSession = None
+        db: AsyncSession = None,
+        use_cache: bool = True
     ) -> AsyncGenerator[Dict, None]:
         """
-        Call LLM with streaming support
+        Call LLM with streaming support and caching
         Yields: {"type": "text"|"tool_call"|"end", "data": ...}
         """
         start_time = time.time()
         
+        # Check cache if not streaming and tools not used
+        if use_cache and not stream and not tools:
+            cache_key = await self._get_cache_key(messages, temperature)
+            cached_response = await self._get_cached_response(cache_key)
+            if cached_response:
+                # Yield cached response
+                if "content" in cached_response:
+                    yield {"type": "text", "data": cached_response["content"]}
+                yield {
+                    "type": "end",
+                    "data": cached_response.get("data", {})
+                }
+                return
+        
         # Check cost limit
         if db and not await self.check_cost_limit(db):
+            logger.warning("Daily cost limit reached")
             yield {
                 "type": "error",
                 "data": {"message": "Daily cost limit reached"}
@@ -124,6 +188,8 @@ class LLMService:
             return
         
         try:
+            logger.info("Calling LLM", model=self.model, stream=stream, tools=bool(tools))
+            
             # Prepare request
             request_params = {
                 "model": self.model,
@@ -192,32 +258,49 @@ class LLMService:
             total_tokens = prompt_tokens + completion_tokens
             cost = self.calculate_cost(prompt_tokens, completion_tokens)
             
+            end_data = {
+                "content": content,
+                "tool_calls": tool_calls,
+                "latency_ms": latency_ms,
+                "tokens": total_tokens,
+                "cost": cost
+            }
+            
+            # Cache response if not streaming and no tools
+            if use_cache and not stream and not tools:
+                cache_key = await self._get_cache_key(messages, temperature)
+                await self._set_cached_response(
+                    cache_key,
+                    {"content": content, "data": end_data},
+                    settings.LLM_CACHE_TTL
+                )
+            
             # Save usage
             if db:
-                usage = LLMUsage(
-                    model=self.model,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    total_tokens=total_tokens,
-                    cost_usd=cost,
-                    latency_ms=latency_ms
-                )
-                db.add(usage)
-                await db.commit()
+                try:
+                    usage = LLMUsage(
+                        model=self.model,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=total_tokens,
+                        cost_usd=cost,
+                        latency_ms=latency_ms
+                    )
+                    db.add(usage)
+                    await db.commit()
+                    logger.info("LLM usage saved", tokens=total_tokens, cost=cost, latency_ms=latency_ms)
+                except Exception as e:
+                    logger.error("Error saving LLM usage", error=str(e))
+                    await db.rollback()
             
             # Yield end event
             yield {
                 "type": "end",
-                "data": {
-                    "content": content,
-                    "tool_calls": tool_calls,
-                    "latency_ms": latency_ms,
-                    "tokens": total_tokens,
-                    "cost": cost
-                }
+                "data": end_data
             }
             
         except Exception as e:
+            logger.error("LLM call error", error=str(e), exc_info=True)
             yield {
                 "type": "error",
                 "data": {"message": str(e)}

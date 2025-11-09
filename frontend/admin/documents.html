@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dökümanlar - AI Chatbot Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <i class="fas fa-robot"></i>
+            <span>AI Chatbot Admin</span>
+        </div>
+        <hr class="border-secondary opacity-25 mx-3">
+        <ul class="nav flex-column px-2">
+            <li class="nav-item"><a href="index.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li class="nav-item"><a href="chats.html" class="nav-link"><i class="fas fa-comments"></i> Canlı Sohbetler</a></li>
+            <li class="nav-item"><a href="analytics.html" class="nav-link"><i class="fas fa-chart-line"></i> Analitik</a></li>
+            <li class="nav-item"><a href="documents.html" class="nav-link active"><i class="fas fa-file-alt"></i> Dökümanlar</a></li>
+            <li class="nav-item mt-5"><a href="#" class="nav-link text-danger logout-link"><i class="fas fa-sign-out-alt"></i> Çıkış</a></li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <nav class="topbar d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+                <button class="toggle-btn" id="toggleSidebar"><i class="fas fa-bars"></i></button>
+                <h5 class="page-title d-none d-lg-block">Dökümanlar</h5>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge badge-ai text-white px-3 py-2">v2.0 Aktif</span>
+                <div class="dropdown">
+                    <a class="d-flex align-items-center text-decoration-none text-light" href="#" data-bs-toggle="dropdown">
+                        <img src="https://i.pravatar.cc/40?u=admin" class="rounded-circle" width="38" alt="Admin">
+                        <span class="ms-2 d-none d-md-inline fw-medium username-display">Yönetici</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0">
+                        <li><a class="dropdown-item text-danger logout-link" href="#"><i class="fas fa-sign-out-alt me-2"></i> Çıkış Yap</a></li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container-fluid py-4 px-4">
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="text-white mb-0">Knowledge Base Dökümanları</h6>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDocumentModal">
+                            <i class="fas fa-plus me-2"></i>Yeni Döküman Ekle
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="documentsContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-3 text-muted">Yükleniyor...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Document Modal -->
+    <div class="modal fade" id="addDocumentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title">Yeni Döküman Ekle</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addDocumentForm">
+                        <div class="mb-3">
+                            <label for="docName" class="form-label">Döküman Adı</label>
+                            <input type="text" class="form-control" id="docName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="docSource" class="form-label">Kaynak</label>
+                            <input type="text" class="form-control" id="docSource" placeholder="URL veya kaynak adı" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="docContent" class="form-label">İçerik</label>
+                            <textarea class="form-control" id="docContent" rows="10" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Ekle</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="admin.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDocuments();
+            
+            // Add document form
+            document.getElementById('addDocumentForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const name = document.getElementById('docName').value.trim();
+                const source = document.getElementById('docSource').value.trim();
+                const content = document.getElementById('docContent').value.trim();
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                
+                if (!name || !source || !content) {
+                    alert('Lütfen tüm alanları doldurun.');
+                    return;
+                }
+                
+                if (content.length < 10) {
+                    alert('Döküman içeriği en az 10 karakter olmalıdır.');
+                    return;
+                }
+                
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Ekleniyor...';
+                
+                try {
+                    const result = await apiCall('/rag/documents', {
+                        method: 'POST',
+                        body: { name, source, content }
+                    });
+                    
+                    if (result) {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('addDocumentModal'));
+                        if (modal) modal.hide();
+                        document.getElementById('addDocumentForm').reset();
+                        loadDocuments();
+                        if (typeof showSuccess === 'function') {
+                            showSuccess('Döküman başarıyla eklendi! İndeksleme başlatıldı.');
+                        } else {
+                            alert('Döküman başarıyla eklendi!');
+                        }
+                    }
+                } catch (error) {
+                    if (typeof showError === 'function') {
+                        showError('Döküman eklenirken hata oluştu: ' + error.message);
+                    } else {
+                        alert('Döküman eklenirken hata oluştu: ' + error.message);
+                    }
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Ekle';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

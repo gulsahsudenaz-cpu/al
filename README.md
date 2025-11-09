@@ -1,226 +1,231 @@
-# AI Chatbot System - Production Ready
+# 🤖 AI-Powered Chatbot System
 
-Üretim seviyesinde, ölçeklenebilir, maliyet kontrollü AI destekli sohbet sistemi.
+Production-ready AI chatbot with RAG (Retrieval Augmented Generation), LLM integration, and multi-channel support (Web, Telegram, Admin Panel).
 
-## Özellikler
+## 🚀 Features
 
-- ✅ **Web Widget** - Gerçek zamanlı sohbet widget'ı (mobil uyumlu, 320px+)
-- ✅ **Admin Panel** - RBAC ile yönetim paneli
-- ✅ **Telegram Bot** - İki yönlü Telegram entegrasyonu
-- ✅ **RAG Sistemi** - Hibrit arama (Semantic + BM25)
-- ✅ **LLM Entegrasyonu** - GPT-4 Turbo desteği
-- ✅ **WebSocket** - Gerçek zamanlı iletişim (heartbeat, deduplication)
-- ✅ **Güvenlik** - JWT, OTP, RBAC, PII redaction, rate limiting
-- ✅ **İzleme** - OpenTelemetry, metrikler, Grafana
-- ✅ **Maliyet Kontrolü** - Günlük limit, token takibi
-- ✅ **Test** - Pytest, Playwright, CI/CD
+- **Multi-Channel Support**: Web widget, Admin panel (RBAC), Telegram bot
+- **RAG System**: Hybrid search (semantic + BM25) with pgvector
+- **LLM Integration**: GPT-4 Turbo with cost tracking and caching
+- **Real-time Communication**: WebSocket with heartbeat and reconnection
+- **Media Processing**: Voice transcription (Whisper), image processing, file uploads
+- **Security**: JWT authentication, OTP, PII redaction, rate limiting
+- **Monitoring**: OpenTelemetry, Prometheus metrics, Grafana dashboards
+- **Production Ready**: Docker, health checks, automated SSL, auto-scaling
 
-## Teknoloji Yığını
-
-- **Backend**: FastAPI, SQLAlchemy, AsyncIO
-- **Database**: PostgreSQL 15+ (pgvector)
-- **Cache/PubSub**: Redis
-- **Vector DB**: pgvector (HNSW)
-- **LLM**: OpenAI GPT-4 Turbo
-- **Frontend**: HTML/CSS/JS (Vite ready)
-- **WebSocket**: FastAPI WebSocket
-- **Workers**: RQ (Redis Queue)
-- **Monitoring**: OpenTelemetry, Grafana
-
-## Kurulum
-
-### Gereksinimler
+## 📋 Requirements
 
 - Python 3.11+
-- PostgreSQL 15+ (pgvector extension)
+- PostgreSQL 15+ with pgvector extension
 - Redis 7+
-- Docker & Docker Compose (önerilir)
+- OpenAI API Key
+- (Optional) Telegram Bot Token
+- (Optional) S3/MinIO for media storage
 
-### Hızlı Başlangıç
+## 🏃 Quick Start
 
-1. **Repository'yi klonlayın**
+### 1. Clone Repository
+
 ```bash
-git clone <repository-url>
-cd chatbot
+git clone https://github.com/gulsahsudenaz-cpu/al.git
+cd al
 ```
 
-2. **Environment variables ayarlayın**
+### 2. Backend Setup
+
 ```bash
-cp .env.example .env
-# .env dosyasını düzenleyin
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-3. **Docker Compose ile başlatın**
+### 3. Environment Variables
+
+Create `backend/.env`:
+
+```env
+DEBUG=True
+SECRET_KEY=your-secret-key-change-in-production
+DATABASE_URL=postgresql://user:password@localhost:5432/chatbot
+REDIS_URL=redis://localhost:6379/0
+OPENAI_API_KEY=your-openai-api-key
+```
+
+### 4. Database Setup
+
+```bash
+cd backend
+alembic upgrade head
+python ../scripts/create_admin.py
+```
+
+### 5. Start Backend
+
+```bash
+cd backend
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 6. Access Admin Panel
+
+Open `frontend/admin/login.html` in browser:
+- Username: `admin`
+- Password: `admin123`
+
+## 🚂 Railway Deployment
+
+### 1. Connect GitHub Repository
+
+1. Go to [Railway](https://railway.app)
+2. New Project → Deploy from GitHub repo
+3. Select repository: `gulsahsudenaz-cpu/al`
+
+### 2. Add Services
+
+- **PostgreSQL**: Add PostgreSQL service (Railway will auto-create)
+- **Redis**: Add Redis service (Railway will auto-create)
+- **Backend**: Main application service
+
+### 3. Environment Variables
+
+Set in Railway dashboard:
+
+```
+DEBUG=False
+SECRET_KEY=your-production-secret-key
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+REDIS_URL=${{Redis.REDIS_URL}}
+OPENAI_API_KEY=your-openai-api-key
+MODEL=gpt-4-turbo
+ENABLE_METRICS=True
+```
+
+### 4. Deploy
+
+Railway will automatically:
+- Build the application
+- Run migrations (`alembic upgrade head`)
+- Start the backend service
+- Health check on `/health`
+
+### 5. Custom Domain (Optional)
+
+1. Go to Settings → Domains
+2. Add custom domain
+3. Railway will auto-configure SSL
+
+## 📁 Project Structure
+
+```
+.
+├── backend/                 # FastAPI backend
+│   ├── app/
+│   │   ├── api/v1/         # API routes
+│   │   ├── core/           # Core utilities
+│   │   ├── models/         # Database models
+│   │   ├── services/       # Business logic
+│   │   ├── websocket/      # WebSocket manager
+│   │   └── workers/        # Background workers
+│   ├── alembic/            # Database migrations
+│   └── requirements.txt    # Python dependencies
+├── frontend/
+│   ├── admin/              # Admin panel
+│   └── widget/             # Web widget
+├── infra/                  # Docker & infrastructure
+├── scripts/                # Utility scripts
+└── tests/                  # Test suites
+```
+
+## 🔧 Configuration
+
+### Backend Config
+
+Key settings in `backend/app/config.py`:
+
+- `DEBUG`: Enable debug mode (default: True)
+- `DATABASE_URL`: PostgreSQL connection string
+- `REDIS_URL`: Redis connection string
+- `OPENAI_API_KEY`: OpenAI API key
+- `RAG_MIN_SIMILARITY`: RAG similarity threshold (default: 0.7)
+- `LLM_DAILY_COST_LIMIT`: Daily LLM cost limit (default: $50)
+
+### Environment Variables
+
+See `backend/.env.example` for all available options.
+
+## 📊 API Documentation
+
+Once backend is running, access:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **Health Check**: http://localhost:8000/health
+
+## 🔐 Admin Credentials
+
+Default admin user:
+- **Username**: `admin`
+- **Password**: `admin123`
+
+**⚠️ Important**: Change password in production!
+
+## 🧪 Testing
+
+```bash
+# Backend tests
+cd backend
+pytest
+
+# E2E tests
+npm test
+```
+
+## 📈 Monitoring
+
+- **Prometheus Metrics**: http://localhost:8000/metrics
+- **Health Check**: http://localhost:8000/health
+- **OpenTelemetry**: Configure `OTEL_EXPORTER_OTLP_ENDPOINT`
+
+## 🐳 Docker Deployment
+
 ```bash
 cd infra
 docker-compose up -d
 ```
 
-4. **Backend bağımlılıklarını yükleyin**
-```bash
-cd ../backend
-pip install -r requirements.txt
-```
+## 📝 Documentation
 
-5. **Veritabanı migrations çalıştırın**
-```bash
-alembic upgrade head
-```
+- [Setup Guide](SETUP_GUIDE.md)
+- [Deployment Guide](DEPLOYMENT.md)
+- [Admin Info](ADMIN_BILGILERI.md)
+- [Quick Start](HIZLI_BASLATMA.md)
 
-6. **Backend'i başlatın**
-```bash
-uvicorn app.main:app --reload
-```
+## 🤝 Contributing
 
-## Yapılandırma
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-### Environment Variables
+## 📄 License
 
-`.env` dosyasında aşağıdaki değişkenleri ayarlayın:
+This project is licensed under the MIT License.
 
-```env
-# OpenAI
-OPENAI_API_KEY=your-api-key
-MODEL=gpt-4-turbo
-LLM_DAILY_COST_LIMIT=50.0
+## 🙏 Acknowledgments
 
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/chatbot
+- OpenAI for GPT-4 Turbo and Whisper API
+- FastAPI for the web framework
+- pgvector for vector search
+- Railway for hosting platform
 
-# Redis
-REDIS_URL=redis://localhost:6379/0
+## 🔗 Links
 
-# Security
-SECRET_KEY=your-secret-key
-JWT_SECRET_KEY=your-jwt-secret
+- [Railway Deployment](https://railway.app)
+- [OpenAI API](https://openai.com/api)
+- [FastAPI Documentation](https://fastapi.tiangolo.com)
 
-# Telegram
-TELEGRAM_BOT_TOKEN=your-bot-token
-```
+---
 
-## API Dokümantasyonu
-
-Backend çalıştıktan sonra:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Frontend
-
-### Widget
-
-Widget'ı kullanmak için:
-
-```html
-<script>
-window.ChatbotConfig = {
-    apiUrl: "ws://localhost:8000/v1/ws/chat",
-    roomKey: "tenant_123",
-    theme: "auto"
-};
-</script>
-<link rel="stylesheet" href="/widget/widget.css">
-<script src="/widget/widget.js"></script>
-```
-
-### Admin Panel
-
-Admin paneli: `frontend/admin/index.html`
-
-## RAG Sistemi
-
-RAG sistemi hibrit arama kullanır:
-- **Semantic Search**: pgvector ile embedding bazlı arama
-- **Keyword Search**: BM25 benzeri full-text search
-- **Hybrid Scoring**: Ağırlıklandırılmış skorlama (0.7 semantic, 0.3 keyword)
-- **Threshold**: Minimum similarity 0.7
-
-## LLM Entegrasyonu
-
-- **Model**: GPT-4 Turbo (varsayılan)
-- **Streaming**: Token-by-token streaming desteği
-- **Tool Calling**: Function calling desteği
-- **Cost Tracking**: Her çağrıda maliyet takibi
-- **Circuit Breaker**: Hata durumunda otomatik koruma
-
-## Güvenlik
-
-- **JWT Authentication**: Token tabanlı kimlik doğrulama
-- **OTP**: Telegram OTP desteği
-- **RBAC**: Rol tabanlı erişim kontrolü
-- **PII Redaction**: Kişisel bilgi maskeleme
-- **Rate Limiting**: İstek sınırlama
-- **CORS**: Cross-origin koruması
-
-## İzleme
-
-- **OpenTelemetry**: Distributed tracing
-- **Metrics**: Custom metrikler
-- **Grafana**: Dashboard'lar
-- **Health Checks**: Sağlık kontrolleri
-
-## Test
-
-```bash
-# Unit tests
-pytest backend/tests/
-
-# Integration tests
-pytest backend/tests/integration/
-
-# E2E tests
-playwright test
-```
-
-## Deployment
-
-### Railway (Önerilen)
-
-Railway ile kolay deployment için [DEPLOYMENT.md](DEPLOYMENT.md) dosyasına bakın.
-
-**Hızlı Başlangıç:**
-1. Git repository'yi GitHub'a push edin
-2. Railway'de yeni proje oluşturun
-3. GitHub repository'nizi bağlayın
-4. PostgreSQL ve Redis plugin'lerini ekleyin
-5. Environment variables'ları ayarlayın
-6. Deploy!
-
-Detaylı rehber: [DEPLOYMENT.md](DEPLOYMENT.md)
-
-### Docker
-
-```bash
-docker-compose -f infra/docker-compose.yml up -d
-```
-
-### Production
-
-1. Environment variables ayarlayın
-2. SSL sertifikası yapılandırın (Let's Encrypt)
-3. Nginx reverse proxy yapılandırın
-4. Monitoring kurun
-5. Backup stratejisi oluşturun
-
-## Başarı Kriterleri
-
-- ✅ RAG hit rate ≥ %70
-- ✅ p95 latency < 800ms (RAG)
-- ✅ Uptime ≥ %99.5
-- ✅ Cost per chat < $0.01
-- ✅ User satisfaction ≥ 4.0/5.0
-
-## Lisans
-
-MIT License
-
-## 📚 Dokümantasyon
-
-- [SETUP_GUIDE.md](SETUP_GUIDE.md) - Kurulum rehberi (hızlı başlangıç + detaylı)
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Railway deployment rehberi
-- [TELEGRAM.md](TELEGRAM.md) - Telegram bot kurulumu
-- [kurulum.md](kurulum.md) - Teknik kurulum detayları (Türkçe)
-
-## Destek
-
-Sorularınız için issue açabilirsiniz.
-
+**Made with ❤️ for AI-powered customer support**

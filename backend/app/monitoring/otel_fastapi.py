@@ -12,13 +12,17 @@ from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 import os
 
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def setup_tracing(service_name: str = "chatbot-backend", otlp_endpoint: str = None):
     """Setup OpenTelemetry tracing"""
     otlp_endpoint = otlp_endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     
     if not otlp_endpoint:
-        print("⚠️  OpenTelemetry endpoint not configured. Tracing disabled.")
+        logger.info("OpenTelemetry endpoint not configured. Tracing disabled.")
         return
     
     # Create resource
@@ -48,10 +52,10 @@ def setup_tracing(service_name: str = "chatbot-backend", otlp_endpoint: str = No
         RedisInstrumentor().instrument()
         SQLAlchemyInstrumentor().instrument()
         OpenAIInstrumentor().instrument()
+        logger.info("OpenTelemetry instrumentation enabled", endpoint=otlp_endpoint)
     except Exception as e:
-        print(f"⚠️  Instrumentation error: {e}")
+        logger.warning("OpenTelemetry instrumentation error", error=str(e), exc_info=True)
     
-    print(f"✅ OpenTelemetry tracing enabled: {otlp_endpoint}")
     return tracer_provider
 
 

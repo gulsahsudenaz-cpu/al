@@ -18,14 +18,11 @@
         </div>
         <hr class="border-secondary opacity-25 mx-3">
         <ul class="nav flex-column px-2">
-            <li class="nav-item"><a href="#" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="fas fa-comments"></i> Canlı Sohbetler</a></li>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="fas fa-brain"></i> AI Modeli</a></li>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="fas fa-history"></i> Geçmiş Konuşmalar</a></li>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="fas fa-chart-line"></i> Analitik</a></li>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="fas fa-shield-alt"></i> Güvenlik</a></li>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="fas fa-cogs"></i> Ayarlar</a></li>
-            <li class="nav-item mt-5"><a href="#" class="nav-link text-danger"><i class="fas fa-sign-out-alt"></i> Çıkış</a></li>
+            <li class="nav-item"><a href="index.html" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li class="nav-item"><a href="chats.html" class="nav-link"><i class="fas fa-comments"></i> Canlı Sohbetler</a></li>
+            <li class="nav-item"><a href="analytics.html" class="nav-link"><i class="fas fa-chart-line"></i> Analitik</a></li>
+            <li class="nav-item"><a href="documents.html" class="nav-link"><i class="fas fa-file-alt"></i> Dökümanlar</a></li>
+            <li class="nav-item mt-5"><a href="#" class="nav-link text-danger logout-link"><i class="fas fa-sign-out-alt"></i> Çıkış</a></li>
         </ul>
     </div>
 
@@ -40,13 +37,13 @@
                 <div class="dropdown">
                     <a class="d-flex align-items-center text-decoration-none text-light" href="#" data-bs-toggle="dropdown">
                         <img src="https://i.pravatar.cc/40?u=admin" class="rounded-circle" width="38" alt="Admin">
-                        <span class="ms-2 d-none d-md-inline fw-medium">Yönetici</span>
+                        <span class="ms-2 d-none d-md-inline fw-medium username-display">Yönetici</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0">
                         <li><a class="dropdown-item" href="#"><i class="fas fa-user me-2"></i> Profil</a></li>
                         <li><a class="dropdown-item" href="#"><i class="fas fa-moon me-2"></i> Karanlık Mod</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-sign-out-alt me-2"></i> Çıkış Yap</a></li>
+                        <li><a class="dropdown-item text-danger logout-link" href="#"><i class="fas fa-sign-out-alt me-2"></i> Çıkış Yap</a></li>
                     </ul>
                 </div>
             </div>
@@ -74,7 +71,7 @@
                         <div class="ms-3">
                             <h6 class="text-muted mb-0">Bugün Konuşma</h6>
                             <h4 class="mb-0 fw-bold text-white" id="todayChats">0</h4>
-                            <small class="text-success">+24%</small>
+                            <small class="text-success"><i class="fas fa-sync fa-spin"></i> Canlı</small>
                         </div>
                     </div>
                 </div>
@@ -86,7 +83,7 @@
                         <div class="ms-3">
                             <h6 class="text-muted mb-0">Ort. Yanıt Süresi</h6>
                             <h4 class="mb-0 fw-bold text-white" id="avgResponseTime">0.0s</h4>
-                            <small class="text-success">-0.2s</small>
+                            <small class="text-success">Canlı</small>
                         </div>
                     </div>
                 </div>
@@ -103,6 +100,44 @@
                     </div>
                 </div>
             </div>
+            <div class="row g-4 mb-4">
+                <div class="col-md-4">
+                    <div class="ai-card d-flex align-items-center">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <div class="ms-3">
+                            <h6 class="text-muted mb-0">RAG Hit Rate</h6>
+                            <h4 class="mb-0 fw-bold text-white" id="ragHitRate">0%</h4>
+                            <small class="text-success">7 günlük</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="ai-card d-flex align-items-center">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #3b82f6, #60a5fa);">
+                            <i class="fas fa-comments"></i>
+                        </div>
+                        <div class="ms-3">
+                            <h6 class="text-muted mb-0">Aktif Sohbetler</h6>
+                            <h4 class="mb-0 fw-bold text-white" id="activeChats">0</h4>
+                            <small class="text-info">Canlı</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="ai-card d-flex align-items-center">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="ms-3">
+                            <h6 class="text-muted mb-0">LLM Maliyet (Bugün)</h6>
+                            <h4 class="mb-0 fw-bold text-white" id="llmCost">$0.0000</h4>
+                            <small class="text-warning">Canlı</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="row g-4">
                 <div class="col-lg-8">
@@ -114,13 +149,15 @@
 
                 <div class="col-lg-4">
                     <div class="ai-card">
-                        <h6 class="fw-semibold mb-3 text-white">Canlı Sohbet Önizleme</h6>
+                        <h6 class="fw-semibold mb-3 text-white">Son Sohbetler</h6>
                         <div class="chat-preview" id="liveChat">
-                            <div class="msg-bot">Merhaba! Size nasıl yardımcı olabilirim?</div>
+                            <div class="text-center py-3 text-muted">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <div class="mt-2">Yükleniyor...</div>
+                            </div>
                         </div>
-                        <div class="mt-3 d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-primary flex-fill"><i class="fas fa-eye"></i> İzle</button>
-                            <button class="btn btn-sm btn-outline-success flex-fill"><i class="fas fa-headset"></i> Devral</button>
+                        <div class="mt-3">
+                            <a href="chats.html" class="btn btn-sm btn-outline-primary w-100"><i class="fas fa-comments"></i> Tüm Sohbetleri Gör</a>
                         </div>
                     </div>
                 </div>

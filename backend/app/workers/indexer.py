@@ -17,6 +17,11 @@ import asyncio
 from app.config import settings
 from app.models.kb_document import KBDocument, DocumentStatus
 from app.services.rag_service import rag_service
+from app.core.logging import setup_logging, get_logger
+
+# Setup logging
+setup_logging(level="INFO", json_format=False)
+logger = get_logger(__name__)
 
 
 redis_conn = Redis.from_url(settings.REDIS_URL)
@@ -40,16 +45,16 @@ async def index_document(doc_id: str):
         doc = result.scalar_one_or_none()
         
         if not doc:
-            print(f"Document {doc_id} not found")
+            logger.warning("Document not found", doc_id=doc_id)
             return
         
         if doc.status == DocumentStatus.INDEXED:
-            print(f"Document {doc_id} already indexed")
+            logger.info("Document already indexed", doc_id=doc_id)
             return
         
         try:
             # Generate embedding
-            print(f"Generating embedding for document {doc_id}...")
+            logger.info("Generating embedding for document", doc_id=doc_id, content_length=len(doc.content))
             embedding = await rag_service.get_embedding(doc.content)
             
             if not embedding:
@@ -68,10 +73,10 @@ async def index_document(doc_id: str):
             )
             
             await db.commit()
-            print(f"Document {doc_id} indexed successfully")
+            logger.info("Document indexed successfully", doc_id=doc_id, embedding_dim=len(embedding))
             
         except Exception as e:
-            print(f"Error indexing document {doc_id}: {e}")
+            logger.error("Error indexing document", doc_id=doc_id, error=str(e), exc_info=True)
             from sqlalchemy import update
             await db.execute(
                 update(KBDocument)
@@ -94,7 +99,7 @@ def enqueue_document(doc_id: str, path: str = None):
     Enqueue a document for indexing
     """
     job = indexer_queue.enqueue(index_document_sync, doc_id)
-    print(f"Document {doc_id} enqueued for indexing. Job ID: {job.id}")
+    logger.info("Document enqueued for indexing", doc_id=doc_id, job_id=job.id)
     return job.id
 
 

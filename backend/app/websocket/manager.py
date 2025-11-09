@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 
 from app.config import settings
 from app.services.orchestrator import OrchestratorService
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class WebSocketManager:
@@ -64,7 +67,11 @@ class WebSocketManager:
         try:
             await websocket.send_json(message)
         except Exception as e:
-            print(f"Error sending message: {e}")
+            logger.error("Error sending WebSocket message", error=str(e), exc_info=True)
+            # Remove disconnected websocket
+            if websocket in self.connection_metadata:
+                room_key = self.connection_metadata[websocket].get("room_key", "default")
+                self.disconnect(websocket, room_key)
     
     async def broadcast(self, message: dict, room_key: str):
         """Broadcast message to all connections in a room"""
@@ -76,7 +83,7 @@ class WebSocketManager:
             try:
                 await websocket.send_json(message)
             except Exception as e:
-                print(f"Error broadcasting: {e}")
+                logger.error("Error broadcasting WebSocket message", error=str(e), room_key=room_key, exc_info=True)
                 disconnected.add(websocket)
         
         # Remove disconnected connections
@@ -116,7 +123,7 @@ class WebSocketManager:
                 await redis_conn.setex(dedup_key, 300, "1")  # 5 minutes TTL
             except Exception as e:
                 # If Redis fails, continue without deduplication
-                print(f"Redis deduplication error: {e}")
+                logger.warning("Redis deduplication error", error=str(e), exc_info=True)
             
             # Send typing indicator
             await self.send_personal_message({
@@ -142,6 +149,7 @@ class WebSocketManager:
                 }, websocket)
                 
             except Exception as e:
+                logger.error("Error processing WebSocket message", error=str(e), room_key=room_key, exc_info=True)
                 await self.send_personal_message({
                     "type": "server.error",
                     "message": "Bir hata oluştu. Lütfen tekrar deneyin.",

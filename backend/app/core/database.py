@@ -4,11 +4,12 @@ Database Configuration and Session Management
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
-import logging
+from sqlalchemy import text
 
 from app.config import settings
+from app.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Convert postgresql:// to postgresql+asyncpg:// for async operations
 # Keep original for Alembic (synchronous)
@@ -50,15 +51,20 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Initialize database (create tables, extensions)"""
-    from app.models import chat, message, rag_metrics, llm_usage, rule, kb_document
+    # Import all models to ensure they are registered with SQLAlchemy
+    from app.models import User, Chat, Message, RAGMetrics, LLMUsage, Rule, KBDocument
     
-    async with engine.begin() as conn:
-        # Create pgvector extension
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        # Create all tables
-        await conn.run_sync(Base.metadata.create_all)
-    
-    logger.info("Database initialized successfully")
+    try:
+        async with engine.begin() as conn:
+            # Create pgvector extension
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            # Create all tables
+            await conn.run_sync(Base.metadata.create_all)
+        
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error("Database initialization failed", error=str(e), exc_info=True)
+        raise
 
 
 async def close_db():

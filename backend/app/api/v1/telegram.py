@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.services.telegram_service import TelegramService
 from app.core.database import get_db
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 telegram_service = TelegramService()
@@ -36,9 +39,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         return {"status": "ok"}
     except Exception as e:
         # Log error but return 200 to Telegram (to avoid retries)
-        print(f"Telegram webhook error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error("Telegram webhook error", error=str(e), exc_info=True)
         return {"status": "error", "message": str(e)}
 
 

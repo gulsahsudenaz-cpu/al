@@ -13,6 +13,9 @@ from app.config import settings
 from app.models.kb_document import KBDocument, DocumentStatus
 from app.models.rag_metrics import RAGMetrics
 from app.core.database import get_db
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class HybridRAGService:
@@ -28,13 +31,16 @@ class HybridRAGService:
     async def get_embedding(self, text: str) -> List[float]:
         """Get embedding vector for text"""
         try:
+            logger.debug("Generating embedding", model=settings.RAG_EMBEDDING_MODEL, text_length=len(text))
             response = await self.openai_client.embeddings.create(
                 model=settings.RAG_EMBEDDING_MODEL,
                 input=text
             )
-            return response.data[0].embedding
+            embedding = response.data[0].embedding
+            logger.debug("Embedding generated", dimensions=len(embedding))
+            return embedding
         except Exception as e:
-            print(f"Error generating embedding: {e}")
+            logger.error("Error generating embedding", error=str(e), exc_info=True)
             return []
     
     async def semantic_search(
@@ -100,7 +106,7 @@ class HybridRAGService:
             
             return documents
         except Exception as e:
-            print(f"Semantic search error: {e}")
+            logger.error("Semantic search error", error=str(e), exc_info=True)
             return []
     
     async def keyword_search(
@@ -160,7 +166,7 @@ class HybridRAGService:
             
             return documents
         except Exception as e:
-            print(f"Keyword search error: {e}")
+            logger.error("Keyword search error", error=str(e), exc_info=True)
             return []
     
     def hybrid_score(
@@ -204,10 +210,13 @@ class HybridRAGService:
         start_time = time.time()
         
         try:
+            logger.info("RAG search started", query=query[:100], room_key=context.get("room_key") if context else None)
+            
             # Get query embedding
             query_embedding = await self.get_embedding(query)
             
             if not query_embedding:
+                logger.warning("Failed to generate embedding for query")
                 return [], False
             
             # Semantic search
@@ -266,15 +275,17 @@ class HybridRAGService:
                     )
                     db.add(metrics)
                     await db.commit()
+                    logger.info("RAG metrics saved", hit_rate=hit_rate, documents=len(final_results), response_time_ms=response_time_ms)
                 except Exception as e:
-                    print(f"Error saving RAG metrics: {e}")
+                    logger.error("Error saving RAG metrics", error=str(e), exc_info=True)
                     await db.rollback()
             
+            logger.info("RAG search completed", hit_rate=hit_rate, documents=len(documents), response_time_ms=response_time_ms)
             return documents, hit_rate
             
         except Exception as e:
             # Log error and return empty results
-            print(f"RAG search error: {e}")
+            logger.error("RAG search error", error=str(e), exc_info=True)
             return [], False
     
     async def get_context_string(self, documents: List[Dict]) -> str:

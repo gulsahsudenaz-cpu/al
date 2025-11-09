@@ -2,13 +2,14 @@
 Application Configuration
 """
 from pydantic_settings import BaseSettings
-from typing import List, Optional
+from typing import List, Optional, Dict
 import os
+import json
 
 
 class Settings(BaseSettings):
     # Application
-    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
+    DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"  # Default to True for development
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
     API_V1_PREFIX: str = "/v1"
     
@@ -48,7 +49,13 @@ class Settings(BaseSettings):
     # RAG
     RAG_MIN_SIMILARITY: float = float(os.getenv("RAG_MIN_SIMILARITY", "0.7"))
     RAG_MAX_DOCUMENTS: int = int(os.getenv("RAG_MAX_DOCUMENTS", "5"))
-    RAG_HYBRID_WEIGHTS: dict = {"semantic": 0.7, "keyword": 0.3}
+    # RAG_HYBRID_WEIGHTS: Default weights for semantic vs keyword search
+    # Can be overridden via environment variable as JSON string
+    _rag_weights_str = os.getenv("RAG_HYBRID_WEIGHTS", '{"semantic": 0.7, "keyword": 0.3}')
+    try:
+        RAG_HYBRID_WEIGHTS: Dict[str, float] = json.loads(_rag_weights_str)
+    except Exception:
+        RAG_HYBRID_WEIGHTS: Dict[str, float] = {"semantic": 0.7, "keyword": 0.3}
     RAG_EMBEDDING_MODEL: str = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small")
     
     # Security
@@ -62,10 +69,16 @@ class Settings(BaseSettings):
     MAX_SESSIONS_PER_USER: int = 3
     
     # CORS
-    CORS_ORIGINS: List[str] = os.getenv(
+    # Allow all origins in DEBUG mode, otherwise use configured origins
+    _cors_origins_str = os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:5173"
-    ).split(",")
+        "http://localhost:3000,http://localhost:5173,http://localhost:8000,http://127.0.0.1:8000,http://localhost:8080,http://127.0.0.1:8080"
+    )
+    CORS_ORIGINS: List[str] = [
+        origin.strip() 
+        for origin in _cors_origins_str.split(",")
+        if origin.strip() and not origin.strip().startswith("file://")
+    ]
     
     # WebSocket
     WS_HEARTBEAT_INTERVAL: int = 30000  # 30 seconds

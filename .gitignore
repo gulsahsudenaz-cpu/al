@@ -73,3 +73,11 @@ coverage.xml
 
 # Railway
 .railway/
+
+# Documentation (keep only essential)
+# DETAYLI_ANALIZ_RAPORU.md
+# KOD_INCELEME_RAPORU.md
+
+# Scripts (keep essential)
+# *.bat (keep start_backend.bat)
+# *.sh (keep start_backend.sh)

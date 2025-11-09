@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import all models to ensure they are registered
-from app.models import Chat, Message, RAGMetrics, LLMUsage, Rule, KBDocument
+from app.models import User, Chat, Message, RAGMetrics, LLMUsage, Rule, KBDocument
 from app.core.database import Base
 from app.config import settings
 

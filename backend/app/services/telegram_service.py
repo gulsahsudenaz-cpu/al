@@ -7,9 +7,12 @@ from datetime import datetime
 from app.config import settings
 from app.services.orchestrator import OrchestratorService
 from app.core.database import get_db
+from app.core.logging import get_logger
 from app.models.chat import Chat
 from app.models.message import Message
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = get_logger(__name__)
 
 
 class TelegramService:
@@ -32,7 +35,7 @@ class TelegramService:
     ):
         """Send message to Telegram chat"""
         if not self.bot_token or not self.api_url:
-            print("Telegram bot token not configured")
+            logger.warning("Telegram bot token not configured")
             return
         
         try:
@@ -52,7 +55,7 @@ class TelegramService:
                 response.raise_for_status()
                 return response.json()
         except Exception as e:
-            print(f"Error sending Telegram message: {e}")
+            logger.error("Error sending Telegram message", error=str(e))
             return None
     
     async def send_photo(self, chat_id: int, photo_url: str, caption: Optional[str] = None):
@@ -76,7 +79,7 @@ class TelegramService:
                 response.raise_for_status()
                 return response.json()
         except Exception as e:
-            print(f"Error sending Telegram photo: {e}")
+            logger.error("Error sending Telegram photo", error=str(e))
             return None
     
     async def send_document(self, chat_id: int, document_url: str, caption: Optional[str] = None):
@@ -100,7 +103,7 @@ class TelegramService:
                 response.raise_for_status()
                 return response.json()
         except Exception as e:
-            print(f"Error sending Telegram document: {e}")
+            logger.error("Error sending Telegram document", error=str(e))
             return None
     
     async def send_typing(self, chat_id: int):
@@ -115,7 +118,24 @@ class TelegramService:
                     json={"chat_id": chat_id, "action": "typing"}
                 )
         except Exception as e:
-            print(f"Error sending typing indicator: {e}")
+            logger.error("Error sending typing indicator", error=str(e))
+    
+    async def get_file(self, file_id: str) -> Optional[Dict]:
+        """Get file information from Telegram"""
+        if not self.bot_token or not self.api_url:
+            return None
+        
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{self.api_url}/getFile",
+                    params={"file_id": file_id}
+                )
+                response.raise_for_status()
+                return response.json().get("result")
+        except Exception as e:
+            logger.error("Error getting file info", file_id=file_id, error=str(e))
+            return None
     
     async def process_update(self, update: Dict, db: Optional[AsyncSession] = None):
         """Process Telegram update"""
@@ -183,9 +203,7 @@ class TelegramService:
                 )
         
         except Exception as e:
-            print(f"Error processing Telegram update: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Error processing Telegram update", error=str(e), exc_info=True)
     
     async def handle_text_message(
         self,
@@ -222,7 +240,7 @@ class TelegramService:
             await self.send_message(chat_id, response_text, reply_to_message_id=message_id)
         
         except Exception as e:
-            print(f"Error processing text message: {e}")
+            logger.error("Error processing text message", error=str(e), exc_info=True)
             await self.send_message(
                 chat_id, 
                 "Üzgünüm, bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
@@ -306,15 +324,72 @@ class TelegramService:
         room_key: str,
         db: Optional[AsyncSession] = None
     ):
-        """Handle voice message from Telegram"""
+        """Handle voice message from Telegram with Whisper transcription"""
         # Send typing indicator
         await self.send_typing(chat_id)
         
-        # Send acknowledgment
-        await self.send_message(
-            chat_id,
-            "Ses mesajınızı aldım. Şu anda ses mesajı analizi henüz aktif değil."
-        )
+        try:
+            # Get voice file
+            file_id = voice.get("file_id")
+            if not file_id:
+                await self.send_message(chat_id, "Ses dosyası alınamadı.")
+                return
+            
+            # Get file info
+            file_info = await self.get_file(file_id)
+            if not file_info:
+                await self.send_message(chat_id, "Ses dosyası bilgisi alınamadı.")
+                return
+            
+            file_path = file_info.get("file_path")
+            if not file_path:
+                await self.send_message(chat_id, "Ses dosyası yolu alınamadı.")
+                return
+            
+            # Download file content
+            file_url = f"https://api.telegram.org/file/bot{self.bot_token}/{file_path}"
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                file_response = await client.get(file_url)
+                if file_response.status_code != 200:
+                    await self.send_message(chat_id, "Ses dosyası indirilemedi.")
+                    return
+                
+                audio_data = file_response.content
+                file_name = file_path.split("/")[-1] or "voice.ogg"
+            
+            # Transcribe voice using media service
+            from app.services.media_service import media_service
+            transcription = await media_service.process_voice(
+                audio_data=audio_data,
+                file_name=file_name,
+                language="tr"  # Turkish by default
+            )
+            
+            if transcription and transcription.get("text"):
+                # Process transcribed text as a regular message
+                text = transcription.get("text")
+                await self.handle_text_message(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    username="",
+                    first_name="",
+                    text=f"[Ses mesajı] {text}",
+                    message_id=0,
+                    room_key=room_key,
+                    db=db
+                )
+            else:
+                await self.send_message(
+                    chat_id,
+                    "Ses mesajınızı aldım ancak transkripsiyon yapılamadı. Lütfen tekrar deneyin."
+                )
+        
+        except Exception as e:
+            logger.error("Error processing voice message", error=str(e), exc_info=True)
+            await self.send_message(
+                chat_id,
+                "Ses mesajı işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin."
+            )
     
     async def handle_callback_query(self, callback_query: Dict):
         """Handle callback query (button click)"""
@@ -331,9 +406,9 @@ class TelegramService:
                         json={"callback_query_id": query_id}
                     )
             except Exception as e:
-                print(f"Error answering callback query: {e}")
+                logger.error("Error answering callback query", error=str(e))
         
         # Process callback data
         # TODO: Implement callback handling
-        print(f"Callback query received: {data}")
+        logger.info("Callback query received", data=data)
 

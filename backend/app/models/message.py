@@ -1,6 +1,7 @@
 """Message Model"""
 from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Enum, JSON
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 import enum
@@ -25,6 +26,9 @@ class Message(Base):
     media = Column(JSON, nullable=True)  # {type: str, url: str, size: int}
     context = Column(JSON, nullable=True)  # RAG sources, metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    
+    # Relationships
+    chat = relationship("Chat", back_populates="messages", lazy="selectin")
     
     __table_args__ = (
         {"schema": "public"},

@@ -67,7 +67,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
         )
-    return {"user_id": user_id, "role": payload.get("role", "user")}
+    return {
+        "user_id": user_id,
+        "username": payload.get("username"),
+        "role": payload.get("role", "user")
+    }
 
 
 def hash_password(password: str) -> str:
