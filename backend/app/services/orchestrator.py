@@ -24,7 +24,9 @@ class OrchestratorService:
         text: str,
         room_key: str,
         websocket=None,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        user_id: Optional[str] = None,
+        metadata: Optional[Dict] = None
     ) -> Dict:
         """
         Process message through: Rules → RAG → LLM
