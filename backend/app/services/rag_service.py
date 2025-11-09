@@ -49,23 +49,30 @@ class HybridRAGService:
             return []
         
         try:
-            # Convert embedding to PostgreSQL array format string
-            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+            # Convert embedding to PostgreSQL array format
+            # Note: pgvector requires vector type, but we store as ARRAY
+            # We'll cast ARRAY to vector in the query
+            embedding_array = query_embedding
             
             # Use raw SQL for pgvector similarity search
-            # Cosine distance: 1 - cosine_similarity
-            # <=> operator returns cosine distance (0 = identical, 2 = opposite)
+            # Cosine distance operator: <=> (returns 0-2, where 0 = identical)
+            # Convert distance to similarity: 1 - (distance / 2)
+            # Since we store as ARRAY, we need to cast to vector for pgvector operations
             sql_query = text("""
                 SELECT 
                     id, name, source, content, size, status, 
                     metadata, created_at, updated_at,
-                    1 - (embedding <=> :embedding::vector) as similarity
+                    1 - ((embedding::vector <=> :embedding::vector) / 2.0) as similarity
                 FROM kb_documents
                 WHERE status = 'indexed' 
                 AND embedding IS NOT NULL
-                ORDER BY embedding <=> :embedding::vector
+                AND array_length(embedding, 1) > 0
+                ORDER BY embedding::vector <=> :embedding::vector
                 LIMIT :limit
             """)
+            
+            # Convert embedding to string format for PostgreSQL
+            embedding_str = "[" + ",".join(map(str, embedding_array)) + "]"
             
             result = await db.execute(
                 sql_query,
