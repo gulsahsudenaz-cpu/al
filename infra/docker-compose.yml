@@ -1,0 +1,119 @@
+version: '3.8'
+
+networks:
+  chatbot-network:
+    driver: bridge
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: chatbot-postgres
+    environment:
+      POSTGRES_DB: chatbot
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    command: >
+      postgres
+      -c shared_preload_libraries=vector
+      -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatbot-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: chatbot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatbot-network
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: chatbot-backend
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/chatbot
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MODEL: ${MODEL:-gpt-4-turbo}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      DEBUG: ${DEBUG:-False}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      ENABLE_METRICS: ${ENABLE_METRICS:-True}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - chatbot-network
+
+  worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: chatbot-worker
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/chatbot
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ../backend:/app
+    command: python -m app.workers.indexer
+    networks:
+      - chatbot-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: chatbot-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - chatbot-network
+
+volumes:
+  postgres_data:
+  redis_data:
+

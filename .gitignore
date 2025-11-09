@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Frontend
+node_modules/
+.next/
+out/
+.nuxt/
+.cache/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Alembic
+alembic/versions/*.pyc
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# Railway
+.railway/

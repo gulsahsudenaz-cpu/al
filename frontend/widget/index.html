@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI ChatBot Widget</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#667eea">
+    
+    <script>
+        window.ChatbotConfig = {
+            apiUrl: "ws://localhost:8000/v1/ws/chat",
+            roomKey: "tenant_123",
+            theme: "auto",
+            position: "bottom-right",
+            primaryColor: "#667eea",
+            secondaryColor: "#f093fb",
+            avatar: "🤖",
+            welcomeMessage: "Merhaba! Size nasıl yardımcı olabilirim? 🚀",
+            quickReplies: ["Ürün bilgisi", "Destek talebi", "Fiyat", "Teknik sorun"],
+            enableVoice: true,
+            enableFile: true,
+            enableCamera: true,
+            enableFeedback: true,
+            heartbeat: 30000,
+            debug: false
+        };
+    </script>
+    <link rel="stylesheet" href="widget.css">
+</head>
+<body>
+    <button class="widget-toggle" id="widgetToggle">💬</button>
+    
+    <div class="chatbot-widget" id="chatbotWidget">
+        <div class="widget-header">
+            <div class="widget-header-content">
+                <div class="widget-avatar" id="widgetAvatar">🤖</div>
+                <div class="widget-header-text">
+                    <h3>AI Asistan</h3>
+                    <div class="widget-status">
+                        <div class="widget-status-dot"></div>
+                        <span>Çevrimiçi - Hemen yanıt veriyor</span>
+                    </div>
+                </div>
+                <button class="widget-close" id="widgetClose">✕</button>
+            </div>
+        </div>
+        
+        <div class="widget-messages" id="widgetMessages">
+            <div class="widget-system-message">
+                <div class="widget-system-content">
+                    🤖 AI Asistanınıza hoş geldiniz! Size nasıl yardımcı olabilirim?
+                </div>
+            </div>
+        </div>
+        
+        <div class="widget-input-container">
+            <div class="widget-input-group">
+                <textarea 
+                    class="widget-message-input" 
+                    placeholder="Mesajınızı yazın..." 
+                    rows="1"
+                    id="widgetMessageInput"
+                ></textarea>
+                <button class="widget-send-button" id="widgetSendButton">➤</button>
+            </div>
+            <div class="widget-media-buttons">
+                <button class="widget-media-btn" id="attachFileBtn">📎 Dosya</button>
+                <button class="widget-media-btn" id="voiceBtn">🎤 Ses</button>
+                <button class="widget-media-btn" id="cameraBtn">📷 Kamera</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="widget.js"></script>
+</body>
+</html>
+
