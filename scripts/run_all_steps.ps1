@@ -1,0 +1,197 @@
+# Complete Setup and Run Script - Windows PowerShell
+# Tüm adımları sırayla gerçekleştirir
+
+Write-Host "🚀 AI Chatbot System - Complete Setup and Run" -ForegroundColor Green
+Write-Host "=============================================" -ForegroundColor Green
+Write-Host ""
+
+$ErrorActionPreference = "Stop"
+
+# Adım 1: .env Dosyası Kontrolü
+Write-Host "📝 Adım 1: .env Dosyası Kontrolü" -ForegroundColor Yellow
+Write-Host "--------------------------------" -ForegroundColor Yellow
+
+if (-not (Test-Path ".env")) {
+    Write-Host "⚠️  .env dosyası bulunamadı. Oluşturuluyor..." -ForegroundColor Yellow
+    @"
+# Application
+DEBUG=False
+SECRET_KEY=change-me-in-production-please-use-secure-random-key
+JWT_SECRET_KEY=change-me-in-production-please-use-secure-random-key
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/chatbot
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# OpenAI (ZORUNLU - Lütfen OpenAI API key'inizi ekleyin)
+OPENAI_API_KEY=your-openai-api-key-here
+
+# Model
+MODEL=gpt-4-turbo
+LLM_DAILY_COST_LIMIT=50.0
+LLM_MAX_TOKENS_PER_REQUEST=512
+
+# RAG
+RAG_MIN_SIMILARITY=0.7
+RAG_MAX_DOCUMENTS=5
+RAG_EMBEDDING_MODEL=text-embedding-3-small
+
+# Telegram (ZORUNLU - Telegram bot token'ınızı ekleyin)
+TELEGRAM_BOT_TOKEN=8033290671:AAHHqhVnDdbIiou4FsO0ACdq7-EdsgW0of8
+
+# CORS
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# Monitoring
+ENABLE_METRICS=True
+"@ | Out-File -FilePath ".env" -Encoding UTF8
+    Write-Host "✅ .env dosyası oluşturuldu" -ForegroundColor Green
+    Write-Host "⚠️  Lütfen .env dosyasını düzenleyin ve OPENAI_API_KEY ekleyin!" -ForegroundColor Yellow
+} else {
+    Write-Host "✅ .env dosyası mevcut" -ForegroundColor Green
+    
+    # Token kontrolü
+    $envContent = Get-Content ".env" -Raw
+    if ($envContent -notmatch "TELEGRAM_BOT_TOKEN=8033290671") {
+        Write-Host "⚠️  Telegram bot token'ı .env dosyasına ekleniyor..." -ForegroundColor Yellow
+        if ($envContent -match "TELEGRAM_BOT_TOKEN=") {
+            $envContent = $envContent -replace "TELEGRAM_BOT_TOKEN=.*", "TELEGRAM_BOT_TOKEN=8033290671:AAHHqhVnDdbIiou4FsO0ACdq7-EdsgW0of8"
+        } else {
+            $envContent += "`n# Telegram`nTELEGRAM_BOT_TOKEN=8033290671:AAHHqhVnDdbIiou4FsO0ACdq7-EdsgW0of8`n"
+        }
+        $envContent | Out-File -FilePath ".env" -Encoding UTF8 -NoNewline
+        Write-Host "✅ Telegram bot token eklendi" -ForegroundColor Green
+    }
+}
+
+Write-Host ""
+
+# Adım 2: Docker Kontrolü
+Write-Host "🐳 Adım 2: Docker Kontrolü" -ForegroundColor Yellow
+Write-Host "-------------------------" -ForegroundColor Yellow
+
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    Write-Host "❌ Docker bulunamadı. Lütfen Docker Desktop'ı yükleyin." -ForegroundColor Red
+    exit 1
+}
+
+try {
+    docker ps | Out-Null
+    Write-Host "✅ Docker çalışıyor" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Docker Desktop çalışmıyor. Lütfen Docker Desktop'ı başlatın." -ForegroundColor Red
+    Write-Host "⏳ Docker Desktop'ı başlattıktan sonra script'i tekrar çalıştırın." -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host ""
+
+# Adım 3: Docker Servislerini Başlat
+Write-Host "🐳 Adım 3: Docker Servislerini Başlat" -ForegroundColor Yellow
+Write-Host "------------------------------------" -ForegroundColor Yellow
+
+Set-Location infra
+
+# Servisleri kontrol et
+$postgresRunning = docker ps --filter "name=chatbot-postgres" --format "{{.Names}}" | Select-String "postgres"
+$redisRunning = docker ps --filter "name=chatbot-redis" --format "{{.Names}}" | Select-String "redis"
+
+if (-not $postgresRunning -or -not $redisRunning) {
+    Write-Host "🐳 PostgreSQL ve Redis başlatılıyor..." -ForegroundColor Yellow
+    docker-compose up -d postgres redis
+    
+    Write-Host "⏳ Servislerin başlaması bekleniyor (15 saniye)..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 15
+} else {
+    Write-Host "✅ Docker servisleri zaten çalışıyor" -ForegroundColor Green
+}
+
+# Servisleri kontrol et
+$postgresRunning = docker ps --filter "name=chatbot-postgres" --format "{{.Names}}" | Select-String "postgres"
+$redisRunning = docker ps --filter "name=chatbot-redis" --format "{{.Names}}" | Select-String "redis"
+
+if ($postgresRunning) {
+    Write-Host "✅ PostgreSQL çalışıyor" -ForegroundColor Green
+} else {
+    Write-Host "❌ PostgreSQL başlatılamadı" -ForegroundColor Red
+}
+
+if ($redisRunning) {
+    Write-Host "✅ Redis çalışıyor" -ForegroundColor Green
+} else {
+    Write-Host "❌ Redis başlatılamadı" -ForegroundColor Red
+}
+
+# pgvector extension
+Write-Host "🔧 pgvector extension kuruluyor..." -ForegroundColor Yellow
+try {
+    docker exec chatbot-postgres psql -U user -d chatbot -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>&1 | Out-Null
+    Write-Host "✅ pgvector extension kuruldu" -ForegroundColor Green
+} catch {
+    Write-Host "⚠️  pgvector extension kurulumu başarısız (manuel olarak kurulabilir)" -ForegroundColor Yellow
+}
+
+Set-Location ..
+Write-Host ""
+
+# Adım 4: Database Migrations
+Write-Host "🗄️  Adım 4: Database Migrations" -ForegroundColor Yellow
+Write-Host "------------------------------" -ForegroundColor Yellow
+
+# Environment variables yükle
+Get-Content ".env" | ForEach-Object {
+    if ($_ -match '^([^#][^=]*)=(.*)$') {
+        $key = $matches[1].Trim()
+        $value = $matches[2].Trim()
+        [Environment]::SetEnvironmentVariable($key, $value, "Process")
+    }
+}
+
+Set-Location backend
+
+# Virtual environment kontrolü
+if (-not (Test-Path "venv\Scripts\Activate.ps1")) {
+    Write-Host "❌ Virtual environment bulunamadı. Önce setup script'ini çalıştırın." -ForegroundColor Red
+    exit 1
+}
+
+# Alembic için sync driver (asyncpg değil)
+$dbUrl = $env:DATABASE_URL
+if ($dbUrl -like "*asyncpg*") {
+    $dbUrl = $dbUrl -replace "postgresql\+asyncpg://", "postgresql://"
+}
+$env:DATABASE_URL = $dbUrl
+
+Write-Host "🔄 Migrations çalıştırılıyor..." -ForegroundColor Yellow
+try {
+    .\venv\Scripts\python.exe -m alembic upgrade head 2>&1 | Out-Null
+    Write-Host "✅ Migrations tamamlandı" -ForegroundColor Green
+} catch {
+    Write-Host "⚠️  Migrations hatası (veritabanı henüz hazır olmayabilir)" -ForegroundColor Yellow
+}
+
+Set-Location ..
+Write-Host ""
+
+# Adım 5: Backend'i Başlat
+Write-Host "🚀 Adım 5: Backend'i Başlat" -ForegroundColor Yellow
+Write-Host "--------------------------" -ForegroundColor Yellow
+
+Write-Host "✅ Kurulum tamamlandı!" -ForegroundColor Green
+Write-Host ""
+Write-Host "📋 Sonraki adımlar:" -ForegroundColor Yellow
+Write-Host "1. .env dosyasını düzenleyin (OPENAI_API_KEY ekleyin)" -ForegroundColor White
+Write-Host "2. Backend'i başlatın:" -ForegroundColor White
+Write-Host "   cd backend" -ForegroundColor Cyan
+Write-Host "   .\venv\Scripts\Activate.ps1" -ForegroundColor Cyan
+Write-Host "   uvicorn app.main:app --reload --port 8000" -ForegroundColor Cyan
+Write-Host "3. Health check: curl http://localhost:8000/health" -ForegroundColor White
+Write-Host "4. API docs: http://localhost:8000/docs" -ForegroundColor White
+Write-Host "5. Telegram webhook'u ayarlayın (ngrok veya Railway)" -ForegroundColor White
+Write-Host ""
+
+Write-Host "🎉 Hazırsınız! Backend'i başlatabilirsiniz." -ForegroundColor Green
+Write-Host ""
+
