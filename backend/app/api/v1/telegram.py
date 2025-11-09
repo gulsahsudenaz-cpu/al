@@ -1,11 +1,13 @@
 """Telegram Bot API Routes"""
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services.telegram_service import TelegramService
+from app.core.database import get_db
 
 router = APIRouter()
 telegram_service = TelegramService()
@@ -19,7 +21,7 @@ class WebhookUpdate(BaseModel):
 
 
 @router.post("/webhook")
-async def telegram_webhook(request: Request):
+async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Telegram webhook endpoint"""
     if not settings.TELEGRAM_BOT_TOKEN:
         raise HTTPException(status_code=503, detail="Telegram bot not configured")
@@ -28,13 +30,15 @@ async def telegram_webhook(request: Request):
         data = await request.json()
         update = WebhookUpdate(**data)
         
-        # Process update asynchronously (don't block webhook response)
-        await telegram_service.process_update(data)
+        # Process update with database session
+        await telegram_service.process_update(data, db=db)
         
         return {"status": "ok"}
     except Exception as e:
         # Log error but return 200 to Telegram (to avoid retries)
         print(f"Telegram webhook error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
 
