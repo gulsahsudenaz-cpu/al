@@ -1,468 +1,191 @@
-# Aşama Aşama Kurulum Rehberi
+# 📖 Detaylı Kurulum Rehberi
 
-Bu rehber, projeyi aşama aşama kurmanız ve deploy etmeniz için adım adım talimatlar içerir.
+## 🎯 Genel Bakış
 
-## Aşama 1: Git Repository Hazırlığı ✅
+Bu rehber, projeyi sıfırdan kurmanız için adım adım talimatlar içerir.
 
-### 1.1 Git Repository Oluşturma
+---
 
-```bash
-# Mevcut dizinde Git'i başlat
-git init
+## 📋 Gereksinimler
 
-# .gitignore kontrolü (zaten oluşturuldu)
-# Tüm dosyaları ekle
-git add .
+- Python 3.11+
+- Docker Desktop
+- PostgreSQL 15+ (pgvector)
+- Redis 7+
+- OpenAI API Key
+- Telegram Bot Token
 
-# İlk commit
-git commit -m "Initial commit: AI Chatbot System v2.0"
+---
 
-# GitHub'da yeni repository oluşturduktan sonra
+## 🚀 Kurulum Adımları
+
+### 1. Git Repository
+
+```powershell
+# Git repository zaten oluşturuldu
+# GitHub'a push etmek için:
 git remote add origin https://github.com/YOUR_USERNAME/chatbot.git
 git branch -M main
 git push -u origin main
 ```
 
-### 1.2 GitHub Repository Ayarları
+### 2. Lokal Geliştirme Ortamı
 
-1. GitHub'da yeni repository oluşturun
-2. Repository adı: `chatbot` (veya istediğiniz ad)
-3. Public veya Private seçin
-4. README, .gitignore, license eklemeyin (zaten var)
-
-### 1.3 GitHub Secrets Ayarlama
-
-1. Repository Settings → Secrets and variables → Actions
-2. "New repository secret" butonuna tıklayın
-3. Şu secrets'ları ekleyin:
-   - `OPENAI_API_KEY`: OpenAI API anahtarınız
-   - `SECRET_KEY`: Güvenli bir secret key (production için)
-   - `JWT_SECRET_KEY`: JWT için secret key
-
-## Aşama 2: Lokal Geliştirme Ortamı 🛠️
-
-### 2.1 Python Virtual Environment
-
-```bash
+```powershell
 # Backend dizinine git
 cd backend
 
 # Virtual environment oluştur
 python -m venv venv
 
-# Virtual environment'ı aktifleştir
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
+# Aktifleştir (Windows)
+.\venv\Scripts\Activate.ps1
 
 # Dependencies yükle
 pip install -r requirements.txt
 pip install -r requirements/dev.txt
+
+# Root'a dön
+cd ..
 ```
 
-### 2.2 Environment Variables
+### 3. Environment Variables
 
-```bash
-# Root dizinde .env dosyası oluştur
-cp .env.example .env
+```powershell
+# .env dosyasını oluştur (zaten var)
+notepad .env
 
-# .env dosyasını düzenle
-# Önemli değişkenler:
-# - OPENAI_API_KEY
-# - SECRET_KEY
-# - JWT_SECRET_KEY
-# - DATABASE_URL
-# - REDIS_URL
+# ZORUNLU değişkenler:
+# - OPENAI_API_KEY=sk-your-key-here
+# - TELEGRAM_BOT_TOKEN=8033290671:AAHHqhVnDdbIiou4FsO0ACdq7-EdsgW0of8
+# - SECRET_KEY=your-secret-key
+# - JWT_SECRET_KEY=your-jwt-secret-key
 ```
 
-### 2.3 Docker Servisleri
+### 4. Docker Servisleri
 
-```bash
-# Docker Compose ile servisleri başlat
+```powershell
+# Docker Desktop'ı başlatın (manuel)
+
+# Servisleri başlat
 cd infra
 docker-compose up -d postgres redis
 
-# Servislerin çalıştığını kontrol et
+# Servislerin başlamasını bekle
+Start-Sleep -Seconds 15
+
+# pgvector extension
+docker exec chatbot-postgres psql -U user -d chatbot -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# Kontrol et
 docker-compose ps
+
+cd ..
 ```
 
-### 2.4 Database Migrations
+### 5. Database Migrations
 
-```bash
+```powershell
 # Backend dizinine git
-cd ../backend
+cd backend
+
+# Virtual environment aktif
+.\venv\Scripts\Activate.ps1
+
+# Environment variables yükle
+Get-Content ..\.env | ForEach-Object {
+    if ($_ -match '^([^#][^=]*)=(.*)$') {
+        $key = $matches[1].Trim()
+        $value = $matches[2].Trim()
+        [Environment]::SetEnvironmentVariable($key, $value, "Process")
+    }
+}
+
+# Alembic için sync driver
+$env:DATABASE_URL = $env:DATABASE_URL -replace "postgresql\+asyncpg://", "postgresql://"
 
 # Migrations çalıştır
 alembic upgrade head
 
-# Migration başarılı mı kontrol et
-# PostgreSQL'e bağlan ve tabloları kontrol et
+cd ..
 ```
 
-### 2.5 Backend Başlatma
+### 6. Backend'i Başlat
 
-```bash
-# Backend'i development mode'da başlat
-uvicorn app.main:app --reload --port 8000
-
-# Tarayıcıda kontrol et
-# http://localhost:8000/health
-# http://localhost:8000/docs
-```
-
-## Aşama 3: Testler ve Doğrulama 🧪
-
-### 3.1 Unit Tests
-
-```bash
-# Backend dizininde
+```powershell
+# Backend dizininde (virtual environment aktif)
 cd backend
-
-# Testleri çalıştır
-pytest tests/ -v
-
-# Coverage ile çalıştır
-pytest tests/ -v --cov=app --cov-report=html
-
-# Coverage raporunu aç
-# htmlcov/index.html
+.\venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --port 8000
 ```
 
-### 3.2 E2E Tests
+### 7. Test Et
 
-```bash
-# Root dizinde
-npm install
-
-# Playwright kurulumu
-npx playwright install
-
-# E2E testleri çalıştır
-npx playwright test
-
-# UI mode'da çalıştır
-npx playwright test --ui
-```
-
-### 3.3 API Testleri
-
-```bash
+```powershell
 # Health check
 curl http://localhost:8000/health
 
 # API docs
-# http://localhost:8000/docs adresini tarayıcıda aç
-
-# WebSocket test (browser console)
-const ws = new WebSocket('ws://localhost:8000/v1/ws/chat?room_key=test');
-ws.onopen = () => console.log('Connected');
-ws.onmessage = (e) => console.log('Message:', e.data);
-ws.send(JSON.stringify({ type: 'client.message', text: 'Hello' }));
+# http://localhost:8000/docs
 ```
 
-## Aşama 4: Railway Deployment 🚀
+---
 
-### 4.1 Railway Hesabı ve Proje
+## 🧪 Test
 
-1. [Railway.app](https://railway.app) hesabı oluşturun
-2. "New Project" butonuna tıklayın
-3. "Deploy from GitHub repo" seçin
-4. Repository'nizi seçin
-5. "Deploy" butonuna tıklayın
+### Unit Tests
 
-### 4.2 PostgreSQL Plugin
-
-1. Railway dashboard'da "+ New" butonuna tıklayın
-2. "Database" → "Add PostgreSQL" seçin
-3. PostgreSQL servisi oluşturulacak
-4. **ÖNEMLİ**: PostgreSQL'de pgvector extension'ını aktifleştirin:
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS vector;
-   ```
-
-### 4.3 Redis Plugin
-
-1. "+ New" butonuna tıklayın
-2. "Database" → "Add Redis" seçin
-3. Redis servisi oluşturulacak
-
-### 4.4 Environment Variables
-
-Railway dashboard'da "Variables" sekmesine gidin ve ekleyin:
-
-```env
-# ZORUNLU
-OPENAI_API_KEY=sk-your-openai-api-key
-SECRET_KEY=your-secret-key-change-in-production
-JWT_SECRET_KEY=your-jwt-secret-key
-
-# OPSIYONEL
-MODEL=gpt-4-turbo
-LLM_DAILY_COST_LIMIT=50.0
-DEBUG=False
-RAG_MIN_SIMILARITY=0.7
-ENABLE_METRICS=True
-
-# Telegram (Opsiyonel)
-TELEGRAM_BOT_TOKEN=your-telegram-bot-token
-TELEGRAM_WEBHOOK_URL=https://your-app.railway.app/v1/telegram/webhook
-
-# CORS
-CORS_ORIGINS=https://your-frontend-domain.com
+```powershell
+cd backend
+.\venv\Scripts\Activate.ps1
+pytest tests/ -v
 ```
 
-**Not**: `DATABASE_URL` ve `REDIS_URL` Railway tarafından otomatik sağlanır.
+### E2E Tests
 
-### 4.5 Deploy ve Kontrol
-
-1. Railway otomatik olarak deploy edecek
-2. Deploy loglarını kontrol edin
-3. Health check: `https://your-app.railway.app/health`
-4. API docs: `https://your-app.railway.app/docs`
-
-### 4.6 Custom Domain (Opsiyonel)
-
-1. Railway dashboard'da "Settings" → "Networking"
-2. "Generate Domain" veya kendi domain'inizi ekleyin
-3. SSL otomatik olarak sağlanır
-
-## Aşama 5: Monitoring Kurulumu 📊
-
-### 5.1 Lokal Monitoring
-
-```bash
-# Monitoring servislerini başlat
-cd infra
-docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
-
-# Servisleri kontrol et
-# Prometheus: http://localhost:9090
-# Grafana: http://localhost:3000 (admin/admin)
-# Metrics: http://localhost:8000/metrics
+```powershell
+npx playwright test
 ```
 
-### 5.2 Grafana Dashboard
+---
 
-1. Grafana'ya giriş yapın (http://localhost:3000)
-2. Default credentials: admin/admin
-3. Data source olarak Prometheus'u ekleyin
-4. Dashboard'ları import edin (opsiyonel)
+## 📚 Sonraki Adımlar
 
-### 5.3 Railway'de Monitoring
+1. İlk admin kullanıcısını oluşturun
+2. Knowledge base dokümanları ekleyin
+3. RAG sistemini test edin
+4. Telegram webhook'u ayarlayın
+5. Railway'a deploy edin
 
-Railway'de monitoring için:
-1. Railway Metrics kullanın (built-in)
-2. Veya external monitoring service kullanın (DataDog, New Relic, etc.)
+---
 
-## Aşama 6: Production Optimizasyonu 🎯
+## 🆘 Sorun Giderme
 
-### 6.1 Performance Tuning
+### Docker Desktop Çalışmıyor
+- Docker Desktop'ı başlatın
+- Tamamen açılmasını bekleyin
+- `docker ps` ile test edin
 
-```bash
-# Database connection pool ayarları
-DATABASE_POOL_SIZE=20
-DATABASE_MAX_OVERFLOW=10
+### Database Bağlantı Hatası
+- Docker servislerinin çalıştığını kontrol edin
+- `DATABASE_URL` doğru mu kontrol edin
+- PostgreSQL container'ın sağlıklı olduğunu kontrol edin
 
-# Redis connection pool
-REDIS_MAX_CONNECTIONS=100
+### Migrations Hatası
+- Database URL'i kontrol edin
+- PostgreSQL'in çalıştığından emin olun
+- pgvector extension'ını manuel kurun
 
-# Worker processes
-WORKERS=4
-```
+### Backend Başlamıyor
+- Virtual environment aktif mi kontrol edin
+- Dependencies yüklendi mi kontrol edin
+- Environment variables doğru mu kontrol edin
+- Port 8000 kullanımda mı kontrol edin
 
-### 6.2 Security Hardening
+---
 
-1. `SECRET_KEY` ve `JWT_SECRET_KEY` güvenli olmalı
-2. CORS origins doğru ayarlanmalı
-3. Rate limiting aktif olmalı
-4. PII redaction aktif olmalı
+## 📚 İlgili Dokümantasyon
 
-### 6.3 Backup Strategy
-
-1. Database backup: Railway otomatik backup sağlar
-2. Manual backup: `pg_dump` ile backup alın
-3. Backup schedule ayarlayın
-
-## Aşama 7: Frontend Deployment 🌐
-
-### 7.1 Widget Deployment
-
-Widget'ı static hosting'e deploy edin:
-- Netlify
-- Vercel
-- GitHub Pages
-- Railway (static files)
-
-### 7.2 Admin Panel Deployment
-
-Admin paneli deploy edin:
-- Netlify
-- Vercel
-- Railway
-- Kendi domain'inizde
-
-### 7.3 CORS Ayarları
-
-Frontend domain'lerini CORS'a ekleyin:
-```env
-CORS_ORIGINS=https://your-widget-domain.com,https://your-admin-domain.com
-```
-
-## Aşama 8: Worker Service 👷
-
-### 8.1 Worker Deployment
-
-Railway'de worker service oluşturun:
-1. "+ New" → "Empty Service"
-2. GitHub repository'yi bağlayın
-3. Start Command: `cd backend && python -m app.workers.indexer`
-4. Environment variables'ları ayarlayın
-
-### 8.2 Worker Monitoring
-
-Worker'ı monitor edin:
-- Railway logs
-- Prometheus metrics
-- Error tracking
-
-## Aşama 9: Testing ve Validation ✅
-
-### 9.1 Smoke Tests
-
-```bash
-# Health check
-curl https://your-app.railway.app/health
-
-# API test
-curl https://your-app.railway.app/v1/chat/chats
-
-# Metrics test
-curl https://your-app.railway.app/metrics
-```
-
-### 9.2 Load Testing
-
-```bash
-# Load test tool kullan (örn: k6, locust)
-# veya Railway metrics'i kullan
-```
-
-### 9.3 End-to-End Testing
-
-```bash
-# E2E testleri production URL ile çalıştır
-BASE_URL=https://your-app.railway.app npx playwright test
-```
-
-## Aşama 10: Documentation ve Runbook 📚
-
-### 10.1 API Documentation
-
-- Swagger UI: `https://your-app.railway.app/docs`
-- ReDoc: `https://your-app.railway.app/redoc`
-
-### 10.2 Runbook
-
-Runbook oluşturun:
-- Troubleshooting guide
-- Common issues
-- Emergency procedures
-- Contact information
-
-## Sorun Giderme 🔧
-
-### Database Connection Error
-
-```bash
-# Database URL'i kontrol et
-railway variables
-
-# Connection test et
-railway run python -c "import os; print(os.getenv('DATABASE_URL'))"
-```
-
-### Redis Connection Error
-
-```bash
-# Redis URL'i kontrol et
-railway variables
-
-# Connection test et
-railway run redis-cli -u $REDIS_URL ping
-```
-
-### Migrations Failed
-
-```bash
-# Manuel olarak çalıştır
-railway run cd backend && alembic upgrade head
-```
-
-### Worker Not Working
-
-```bash
-# Worker logs'u kontrol et
-railway logs worker
-
-# Worker'ı manuel başlat
-railway run cd backend && python -m app.workers.indexer
-```
-
-## Checklist ✅
-
-### Lokal Geliştirme
-- [ ] Git repository oluşturuldu
-- [ ] Virtual environment kuruldu
-- [ ] Dependencies yüklendi
-- [ ] Environment variables ayarlandı
-- [ ] Docker servisleri çalışıyor
-- [ ] Database migrations çalıştırıldı
-- [ ] Backend başarıyla başlatıldı
-- [ ] Tests başarıyla çalıştı
-
-### Railway Deployment
-- [ ] Railway hesabı oluşturuldu
-- [ ] GitHub repository bağlandı
-- [ ] PostgreSQL plugin eklendi
-- [ ] Redis plugin eklendi
-- [ ] Environment variables ayarlandı
-- [ ] Deploy başarılı
-- [ ] Health check çalışıyor
-- [ ] Custom domain ayarlandı (opsiyonel)
-
-### Monitoring
-- [ ] Monitoring servisleri kuruldu
-- [ ] Prometheus çalışıyor
-- [ ] Grafana çalışıyor
-- [ ] Metrics endpoint çalışıyor
-- [ ] Dashboard'lar yapılandırıldı
-
-### Production
-- [ ] Security hardening yapıldı
-- [ ] Performance tuning yapıldı
-- [ ] Backup strategy oluşturuldu
-- [ ] Frontend deploy edildi
-- [ ] Worker service deploy edildi
-- [ ] Testing tamamlandı
-- [ ] Documentation tamamlandı
-
-## Sonraki Adımlar 🚀
-
-1. **Monitoring Dashboard**: Grafana dashboard'ları oluşturun
-2. **Alerting**: Alert rules yapılandırın
-3. **Scaling**: Auto-scaling ayarlayın
-4. **CI/CD**: GitHub Actions workflow'ları optimize edin
-5. **Documentation**: API documentation'ı genişletin
-6. **Testing**: Test coverage'ı artırın
-7. **Performance**: Performance optimization yapın
-8. **Security**: Security audit yapın
-
-## Destek 📞
-
-Sorularınız için:
-- GitHub Issues
-- Documentation
-- Railway Support
-- Community Forum
-
+- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Railway deployment
+- [TELEGRAM.md](TELEGRAM.md) - Telegram bot kurulumu

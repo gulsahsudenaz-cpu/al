@@ -1,112 +1,97 @@
-# Hızlı Başlangıç Kılavuzu
+# ⚡ Hızlı Başlangıç
 
-## 1. Gereksinimler
+## 🎯 3 Adımda Çalıştır
 
-- Python 3.11+
-- PostgreSQL 15+ (pgvector extension)
-- Redis 7+
-- Docker & Docker Compose
+### ⚠️ ÖNEMLİ: Docker Desktop'ı Başlatın
 
-## 2. Kurulum
+Docker Desktop'ı açın ve tamamen başlamasını bekleyin.
 
-### Adım 1: Repository'yi klonlayın
-```bash
-git clone <repository-url>
-cd chatbot
+---
+
+### Adım 1: .env Dosyasını Düzenleyin
+
+```powershell
+# .env dosyasını açın
+notepad .env
+
+# OPENAI_API_KEY değerini değiştirin
+OPENAI_API_KEY=sk-your-actual-openai-api-key-here
+
+# Dosyayı kaydedin
 ```
 
-### Adım 2: Environment variables
-```bash
-cp .env.example .env
-# .env dosyasını düzenleyin
-```
+---
 
-### Adım 3: Docker servislerini başlatın
-```bash
+### Adım 2: Docker Servislerini Başlatın
+
+```powershell
+# Docker Desktop'ın çalıştığından emin olun
+docker ps
+
+# Servisleri başlat
 cd infra
 docker-compose up -d postgres redis
+Start-Sleep -Seconds 15
+
+# pgvector extension
+docker exec chatbot-postgres psql -U user -d chatbot -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# Root'a dön
 cd ..
 ```
 
-### Adım 4: Python bağımlılıklarını yükleyin
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cd ..
-```
+---
 
-### Adım 5: Veritabanı migrations
-```bash
+### Adım 3: Backend'i Başlatın
+
+```powershell
+# Backend dizinine git
 cd backend
+
+# Virtual environment aktifleştir
+.\venv\Scripts\Activate.ps1
+
+# Environment variables yükle
+Get-Content ..\.env | ForEach-Object {
+    if ($_ -match '^([^#][^=]*)=(.*)$') {
+        [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
+    }
+}
+
+# Alembic için sync driver
+$env:DATABASE_URL = $env:DATABASE_URL -replace "postgresql\+asyncpg://", "postgresql://"
+
+# Migrations çalıştır
 alembic upgrade head
-cd ..
+
+# Backend'i başlat
+uvicorn app.main:app --reload --port 8000
 ```
 
-### Adım 6: Backend'i başlatın
-```bash
-cd backend
-uvicorn app.main:app --reload
-```
+---
 
-Backend şu adreste çalışacak: http://localhost:8000
+## ✅ Test Edin
 
-## 3. Test
-
-### API Health Check
-```bash
+```powershell
+# Yeni terminal açın
 curl http://localhost:8000/health
+
+# Tarayıcıda
+# http://localhost:8000/docs
 ```
 
-### WebSocket Test
-Browser console'da:
-```javascript
-const ws = new WebSocket('ws://localhost:8000/v1/ws/chat?room_key=test');
-ws.onopen = () => console.log('Connected');
-ws.onmessage = (e) => console.log('Message:', e.data);
-ws.send(JSON.stringify({ type: 'client.message', text: 'Merhaba' }));
-```
+---
 
-## 4. Frontend
+## 📚 Daha Fazla Bilgi
 
-### Widget
-`frontend/widget/index.html` dosyasını bir web server'da açın.
+- [SETUP_GUIDE.md](SETUP_GUIDE.md) - Detaylı kurulum rehberi
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Railway deployment
+- [TELEGRAM.md](TELEGRAM.md) - Telegram bot kurulumu
 
-### Admin Panel
-`frontend/admin/index.html` dosyasını açın ve admin kullanıcı ile giriş yapın.
+---
 
-## 5. Telegram Bot
+## 🆘 Sorun Giderme
 
-### Bot Token
-`.env` dosyasına `TELEGRAM_BOT_TOKEN` ekleyin.
-
-### Webhook
-```bash
-curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
-  -d "url=https://yourdomain.com/v1/telegram/webhook"
-```
-
-## Sorun Giderme
-
-### PostgreSQL bağlantı hatası
-- PostgreSQL'in çalıştığından emin olun
-- `DATABASE_URL` değişkenini kontrol edin
-
-### Redis bağlantı hatası
-- Redis'in çalıştığından emin olun
-- `REDIS_URL` değişkenini kontrol edin
-
-### pgvector extension hatası
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-## Sonraki Adımlar
-
-1. İlk admin kullanıcısını oluşturun
-2. Knowledge base dokümanları ekleyin
-3. RAG sistemini test edin
-4. LLM entegrasyonunu yapılandırın
-5. Monitoring kurun
-
+- Docker çalışmıyor? → Docker Desktop'ı başlatın
+- .env dosyası yok? → `notepad .env` ile oluşturun
+- Backend başlamıyor? → Virtual environment aktif mi kontrol edin
