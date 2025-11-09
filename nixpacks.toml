@@ -1,18 +1,19 @@
 [phases.setup]
-nixPkgs = ["python311", "postgresql", "redis"]
+nixPkgs = ["python311"]
 
 [phases.install]
 cmds = [
   "cd backend",
+  "pip install --upgrade pip",
   "pip install -r requirements.txt"
 ]
 
 [phases.build]
 cmds = [
   "cd backend",
-  "alembic upgrade head || true"
+  "alembic upgrade head || echo 'Migrations skipped'"
 ]
 
 [start]
-cmd = "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+cmd = "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 
