@@ -213,6 +213,13 @@ docker-compose -f infra/docker-compose.yml up -d
 
 MIT License
 
+## 📚 Dokümantasyon
+
+- [SETUP_GUIDE.md](SETUP_GUIDE.md) - Kurulum rehberi (hızlı başlangıç + detaylı)
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Railway deployment rehberi
+- [TELEGRAM.md](TELEGRAM.md) - Telegram bot kurulumu
+- [kurulum.md](kurulum.md) - Teknik kurulum detayları (Türkçe)
+
 ## Destek
 
 Sorularınız için issue açabilirsiniz.
