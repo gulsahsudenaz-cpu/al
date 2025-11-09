@@ -8,15 +8,22 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+# Import all models to ensure they are registered
+from app.models import Chat, Message, RAGMetrics, LLMUsage, Rule, KBDocument
 from app.core.database import Base
 from app.config import settings
-from app.models import Chat, Message, RAGMetrics, LLMUsage, Rule, KBDocument
 
 # this is the Alembic Config object
 config = context.config
 
 # Override sqlalchemy.url with settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"))
+# Alembic uses sync driver (not asyncpg)
+database_url = settings.DATABASE_URL
+if database_url.startswith("postgresql+asyncpg://"):
+    database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+elif "POSTGRES_URL" in os.environ:
+    database_url = os.environ["POSTGRES_URL"]
+config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

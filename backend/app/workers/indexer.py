@@ -52,16 +52,32 @@ async def index_document(doc_id: str):
             print(f"Generating embedding for document {doc_id}...")
             embedding = await rag_service.get_embedding(doc.content)
             
-            # Update document
-            doc.embedding = embedding
-            doc.status = DocumentStatus.INDEXED
+            if not embedding:
+                raise Exception("Failed to generate embedding")
+            
+            # Update document with embedding (as array)
+            # PostgreSQL will handle the conversion to vector type if pgvector extension is active
+            from sqlalchemy import update
+            await db.execute(
+                update(KBDocument)
+                .where(KBDocument.id == doc_id)
+                .values(
+                    embedding=embedding,
+                    status=DocumentStatus.INDEXED
+                )
+            )
             
             await db.commit()
             print(f"Document {doc_id} indexed successfully")
             
         except Exception as e:
             print(f"Error indexing document {doc_id}: {e}")
-            doc.status = DocumentStatus.FAILED
+            from sqlalchemy import update
+            await db.execute(
+                update(KBDocument)
+                .where(KBDocument.id == doc_id)
+                .values(status=DocumentStatus.FAILED)
+            )
             await db.commit()
             raise
     

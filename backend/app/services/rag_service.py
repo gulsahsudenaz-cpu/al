@@ -27,55 +27,134 @@ class HybridRAGService:
     
     async def get_embedding(self, text: str) -> List[float]:
         """Get embedding vector for text"""
-        response = await self.openai_client.embeddings.create(
-            model=settings.RAG_EMBEDDING_MODEL,
-            input=text
-        )
-        return response.data[0].embedding
+        try:
+            response = await self.openai_client.embeddings.create(
+                model=settings.RAG_EMBEDDING_MODEL,
+                input=text
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            print(f"Error generating embedding: {e}")
+            return []
     
     async def semantic_search(
         self,
         query_embedding: List[float],
         limit: int = 10,
-        filters: Optional[Dict] = None
+        filters: Optional[Dict] = None,
+        db: AsyncSession = None
     ) -> List[Tuple[KBDocument, float]]:
         """Semantic search using pgvector cosine similarity"""
-        # Convert embedding to PostgreSQL vector format
-        embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+        if not db or not query_embedding:
+            return []
         
-        query = select(KBDocument).where(
-            KBDocument.status == DocumentStatus.INDEXED,
-            KBDocument.embedding.isnot(None)
-        ).order_by(
-            text("embedding <=> :embedding").bindparam(embedding=embedding_str)
-        ).limit(limit)
-        
-        # Execute query (this would need proper async session handling)
-        # For now, returning placeholder
-        return []
+        try:
+            # Convert embedding to PostgreSQL array format string
+            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+            
+            # Use raw SQL for pgvector similarity search
+            # Cosine distance: 1 - cosine_similarity
+            # <=> operator returns cosine distance (0 = identical, 2 = opposite)
+            sql_query = text("""
+                SELECT 
+                    id, name, source, content, size, status, 
+                    metadata, created_at, updated_at,
+                    1 - (embedding <=> :embedding::vector) as similarity
+                FROM kb_documents
+                WHERE status = 'indexed' 
+                AND embedding IS NOT NULL
+                ORDER BY embedding <=> :embedding::vector
+                LIMIT :limit
+            """)
+            
+            result = await db.execute(
+                sql_query,
+                {
+                    "embedding": embedding_str,
+                    "limit": limit
+                }
+            )
+            
+            documents = []
+            for row in result:
+                doc = KBDocument(
+                    id=row.id,
+                    name=row.name,
+                    source=row.source,
+                    content=row.content,
+                    size=row.size,
+                    status=DocumentStatus.INDEXED,
+                    metadata=row.metadata,
+                    created_at=row.created_at,
+                    updated_at=row.updated_at
+                )
+                similarity = float(row.similarity) if row.similarity else 0.0
+                documents.append((doc, similarity))
+            
+            return documents
+        except Exception as e:
+            print(f"Semantic search error: {e}")
+            return []
     
     async def keyword_search(
         self,
         query: str,
         limit: int = 10,
-        filters: Optional[Dict] = None
+        filters: Optional[Dict] = None,
+        db: AsyncSession = None
     ) -> List[Tuple[KBDocument, float]]:
-        """Keyword search using BM25-like scoring"""
-        # Extract keywords
-        keywords = re.findall(r'\b\w+\b', query.lower())
+        """Keyword search using PostgreSQL full-text search (BM25-like)"""
+        if not db or not query:
+            return []
         
-        # PostgreSQL full-text search
-        query_text = " & ".join(keywords)
-        sql = f"""
-            SELECT *, ts_rank(to_tsvector('english', content), plainto_tsquery('english', :query)) as score
-            FROM kb_documents
-            WHERE status = 'indexed'
-            AND to_tsvector('english', content) @@ plainto_tsquery('english', :query)
-            ORDER BY score DESC
-            LIMIT :limit
-        """
-        # Execute query (placeholder)
-        return []
+        try:
+            # Use PostgreSQL full-text search
+            sql_query = text("""
+                SELECT 
+                    id, name, source, content, size, status, 
+                    metadata, created_at, updated_at,
+                    ts_rank(
+                        to_tsvector('english', COALESCE(content, '')),
+                        plainto_tsquery('english', :query)
+                    ) as score
+                FROM kb_documents
+                WHERE status = 'indexed'
+                AND to_tsvector('english', COALESCE(content, '')) @@ plainto_tsquery('english', :query)
+                ORDER BY score DESC
+                LIMIT :limit
+            """)
+            
+            result = await db.execute(
+                sql_query,
+                {
+                    "query": query,
+                    "limit": limit
+                }
+            )
+            
+            documents = []
+            for row in result:
+                doc = KBDocument(
+                    id=row.id,
+                    name=row.name,
+                    source=row.source,
+                    content=row.content,
+                    size=row.size,
+                    status=DocumentStatus.INDEXED,
+                    metadata=row.metadata,
+                    created_at=row.created_at,
+                    updated_at=row.updated_at
+                )
+                # Normalize score to 0-1 range
+                # ts_rank typically returns 0-10, normalize to 0-1
+                score = float(row.score) if row.score else 0.0
+                score = min(1.0, score / 10.0)  # Normalize
+                documents.append((doc, score))
+            
+            return documents
+        except Exception as e:
+            print(f"Keyword search error: {e}")
+            return []
     
     def hybrid_score(
         self,
@@ -85,20 +164,21 @@ class HybridRAGService:
         """Combine semantic and keyword results with weighted scoring"""
         doc_scores: Dict[str, Tuple[KBDocument, float]] = {}
         
-        # Add semantic results
+        # Add semantic results (score is already similarity 0-1)
         for doc, score in semantic_results:
-            normalized_score = (1.0 - score) if score < 1.0 else 0.0  # Convert distance to similarity
-            if doc.id not in doc_scores:
-                doc_scores[str(doc.id)] = (doc, 0.0)
-            doc, current_score = doc_scores[str(doc.id)]
-            doc_scores[str(doc.id)] = (doc, current_score + normalized_score * self.semantic_weight)
+            doc_id = str(doc.id)
+            if doc_id not in doc_scores:
+                doc_scores[doc_id] = (doc, 0.0)
+            current_doc, current_score = doc_scores[doc_id]
+            doc_scores[doc_id] = (doc, current_score + score * self.semantic_weight)
         
-        # Add keyword results
+        # Add keyword results (score is normalized to 0-1)
         for doc, score in keyword_results:
-            if doc.id not in doc_scores:
-                doc_scores[str(doc.id)] = (doc, 0.0)
-            doc, current_score = doc_scores[str(doc.id)]
-            doc_scores[str(doc.id)] = (doc, current_score + score * self.keyword_weight)
+            doc_id = str(doc.id)
+            if doc_id not in doc_scores:
+                doc_scores[doc_id] = (doc, 0.0)
+            current_doc, current_score = doc_scores[doc_id]
+            doc_scores[doc_id] = (doc, current_score + score * self.keyword_weight)
         
         # Sort by score and return
         results = sorted(doc_scores.values(), key=lambda x: x[1], reverse=True)
@@ -120,11 +200,22 @@ class HybridRAGService:
             # Get query embedding
             query_embedding = await self.get_embedding(query)
             
+            if not query_embedding:
+                return [], False
+            
             # Semantic search
-            semantic_results = await self.semantic_search(query_embedding, limit=10)
+            semantic_results = await self.semantic_search(
+                query_embedding, 
+                limit=10,
+                db=db
+            )
             
             # Keyword search
-            keyword_results = await self.keyword_search(query, limit=10)
+            keyword_results = await self.keyword_search(
+                query, 
+                limit=10,
+                db=db
+            )
             
             # Hybrid scoring
             combined_results = self.hybrid_score(semantic_results, keyword_results)
@@ -158,15 +249,19 @@ class HybridRAGService:
             
             # Save metrics
             if db:
-                metrics = RAGMetrics(
-                    query_text=query,
-                    retrieved_documents=len(final_results),
-                    similarity_scores=similarity_scores,
-                    response_time_ms=response_time_ms,
-                    hit_rate=hit_rate
-                )
-                db.add(metrics)
-                await db.commit()
+                try:
+                    metrics = RAGMetrics(
+                        query_text=query,
+                        retrieved_documents=len(final_results),
+                        similarity_scores=similarity_scores,
+                        response_time_ms=response_time_ms,
+                        hit_rate=hit_rate
+                    )
+                    db.add(metrics)
+                    await db.commit()
+                except Exception as e:
+                    print(f"Error saving RAG metrics: {e}")
+                    await db.rollback()
             
             return documents, hit_rate
             
@@ -184,4 +279,3 @@ class HybridRAGService:
 
 
 rag_service = HybridRAGService()
-
