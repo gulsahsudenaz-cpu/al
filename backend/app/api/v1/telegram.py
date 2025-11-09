@@ -42,14 +42,22 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         return {"status": "error", "message": str(e)}
 
 
+class SetWebhookRequest(BaseModel):
+    webhook_url: Optional[str] = None
+
+
 @router.post("/set-webhook")
-async def set_webhook(webhook_url: Optional[str] = None):
+async def set_webhook(request: SetWebhookRequest = None):
     """Set Telegram webhook URL"""
     if not settings.TELEGRAM_BOT_TOKEN:
         raise HTTPException(status_code=503, detail="Telegram bot not configured")
     
-    url = webhook_url or settings.TELEGRAM_WEBHOOK_URL
-    if not url:
+    # Get webhook URL from request body or settings
+    if request and request.webhook_url:
+        url = request.webhook_url
+    elif settings.TELEGRAM_WEBHOOK_URL:
+        url = settings.TELEGRAM_WEBHOOK_URL
+    else:
         raise HTTPException(status_code=400, detail="Webhook URL not provided")
     
     # Set webhook via Telegram API
