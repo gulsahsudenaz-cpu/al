@@ -1,12 +1,90 @@
-# 📖 Detaylı Kurulum Rehberi
+# 📖 Kurulum Rehberi
 
-## 🎯 Genel Bakış
+## ⚡ Hızlı Başlangıç (3 Adım)
 
-Bu rehber, projeyi sıfırdan kurmanız için adım adım talimatlar içerir.
+### ⚠️ ÖNEMLİ: Docker Desktop'ı Başlatın
+
+Docker Desktop'ı açın ve tamamen başlamasını bekleyin.
 
 ---
 
-## 📋 Gereksinimler
+### Adım 1: .env Dosyasını Düzenleyin
+
+```powershell
+# .env dosyasını açın
+notepad .env
+
+# OPENAI_API_KEY değerini değiştirin
+OPENAI_API_KEY=sk-your-actual-openai-api-key-here
+
+# Dosyayı kaydedin
+```
+
+---
+
+### Adım 2: Docker Servislerini Başlatın
+
+```powershell
+# Docker Desktop'ın çalıştığından emin olun
+docker ps
+
+# Servisleri başlat
+cd infra
+docker-compose up -d postgres redis
+Start-Sleep -Seconds 15
+
+# pgvector extension
+docker exec chatbot-postgres psql -U user -d chatbot -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# Root'a dön
+cd ..
+```
+
+---
+
+### Adım 3: Backend'i Başlatın
+
+```powershell
+# Backend dizinine git
+cd backend
+
+# Virtual environment aktifleştir
+.\venv\Scripts\Activate.ps1
+
+# Environment variables yükle
+Get-Content ..\.env | ForEach-Object {
+    if ($_ -match '^([^#][^=]*)=(.*)$') {
+        [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
+    }
+}
+
+# Alembic için sync driver
+$env:DATABASE_URL = $env:DATABASE_URL -replace "postgresql\+asyncpg://", "postgresql://"
+
+# Migrations çalıştır
+alembic upgrade head
+
+# Backend'i başlat
+uvicorn app.main:app --reload --port 8000
+```
+
+---
+
+## ✅ Test Edin
+
+```powershell
+# Yeni terminal açın
+curl http://localhost:8000/health
+
+# Tarayıcıda
+# http://localhost:8000/docs
+```
+
+---
+
+## 📋 Detaylı Kurulum
+
+### Gereksinimler
 
 - Python 3.11+
 - Docker Desktop
@@ -17,8 +95,6 @@ Bu rehber, projeyi sıfırdan kurmanız için adım adım talimatlar içerir.
 
 ---
 
-## 🚀 Kurulum Adımları
-
 ### 1. Git Repository
 
 ```powershell
@@ -28,6 +104,8 @@ git remote add origin https://github.com/YOUR_USERNAME/chatbot.git
 git branch -M main
 git push -u origin main
 ```
+
+---
 
 ### 2. Lokal Geliştirme Ortamı
 
@@ -49,6 +127,8 @@ pip install -r requirements/dev.txt
 cd ..
 ```
 
+---
+
 ### 3. Environment Variables
 
 ```powershell
@@ -61,6 +141,8 @@ notepad .env
 # - SECRET_KEY=your-secret-key
 # - JWT_SECRET_KEY=your-jwt-secret-key
 ```
+
+---
 
 ### 4. Docker Servisleri
 
@@ -82,6 +164,8 @@ docker-compose ps
 
 cd ..
 ```
+
+---
 
 ### 5. Database Migrations
 
@@ -110,6 +194,8 @@ alembic upgrade head
 cd ..
 ```
 
+---
+
 ### 6. Backend'i Başlat
 
 ```powershell
@@ -118,6 +204,8 @@ cd backend
 .\venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8000
 ```
+
+---
 
 ### 7. Test Et
 
@@ -154,8 +242,8 @@ npx playwright test
 1. İlk admin kullanıcısını oluşturun
 2. Knowledge base dokümanları ekleyin
 3. RAG sistemini test edin
-4. Telegram webhook'u ayarlayın
-5. Railway'a deploy edin
+4. Telegram webhook'u ayarlayın (bkz: [TELEGRAM.md](TELEGRAM.md))
+5. Railway'a deploy edin (bkz: [DEPLOYMENT.md](DEPLOYMENT.md))
 
 ---
 
@@ -186,6 +274,6 @@ npx playwright test
 
 ## 📚 İlgili Dokümantasyon
 
-- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
 - [DEPLOYMENT.md](DEPLOYMENT.md) - Railway deployment
 - [TELEGRAM.md](TELEGRAM.md) - Telegram bot kurulumu
+- [kurulum.md](kurulum.md) - Teknik kurulum detayları (Türkçe)
